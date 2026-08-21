@@ -58,31 +58,40 @@ The application is divided into separate tasks for sensor processing, user inter
 - Tasks use RTOS delays instead of blocking delays where periodic execution is required.
 
 ```plaintext
-                   ┌───────────────────────────────────┐
-                   │        ST7789 TFT Display         │
-                   └─────────────────▲─────────────────┘
-                                     │ SPI
-                   ┌─────────────────┴─────────────────┐
-                   │       TI MSPM0G3507 (Host)        │
-                   │    ┌─────────────────────────┐    │
-                   │    │     FreeRTOS Kernel     │    │
-                   │    │  • Tasks • EventGroups  │    │
-                   │    │  • Task Notifications   │    │
-                   │    └─────────────────────────┘    │
-                   └───────▲───────────────────▲───────┘
-                           │ I2C               │ UART (AT Commands)
-         ┌─────────────────┴─────────┐         │
-         │           │               │         ▼
-   ┌─────┴────┐ ┌────┴─────┐ ┌───────┴──────┐ ┌─────────────────┐
-   │  BME280  │ │  DS1307  │ │   QMC5883L   │ │     ESP8266     │
-   │ (Env.)   │ │  (RTC)   │ │  (Magneto.)  │ └────────▲────────┘
-   └──────────┘ └──────────┘ └──────────────┘          │ Wi-Fi / HTTP
-                                                       ▼
-                                              ┌─────────────────┐
-                                              │ Python Backend  │
-                                              │  (REST Service) │
-                                              └─────────────────┘
-
+                         ┌─────────────────────────┐
+                         │    ST7789 TFT Display   │
+                         └────────────▲────────────┘
+                                      │ SPI
+                                      │
+                         ┌────────────┴────────────┐
+                         │     TI MSPM0G3507       │
+                         │                         │
+                         │    ┌───────────────┐    │
+                         │    │   FreeRTOS    │    │
+                         │    │               │    │
+                         │    │ • Tasks       │    │
+                         │    │ • Event Groups│    │
+                         │    │ • Task Notify │    │
+                         │    └───────────────┘    │
+                         └──────┬───────────┬──────┘
+                                │           │
+                            I2C │           │ UART
+                                │           │ AT Commands
+                  ┌─────────────┼───────┐   │
+                  │             │       │   ▼
+             ┌────▼────┐  ┌────▼───┐ ┌─▼────────┐   ┌─────────────┐
+             │ BME280  │  │ DS1307 │ │ QMC5883L │   │   ESP8266   │
+             │ Temp.   │  │  RTC   │ │ Compass  │   │    Wi-Fi    │
+             │ Humidity│  └────────┘ └──────────┘   └──────┬──────┘
+             │ Pressure│                                   │
+             └─────────┘                              Wi-Fi / HTTP
+                                                           │
+                                                           ▼
+                                                   ┌───────────────┐
+                                                   │ Python Backend│
+                                                   │ Weather /     │
+                                                   │ Financial Data│
+                                                   └───────────────┘
 ## Project Structure
 ```text
 Full_Proje/
