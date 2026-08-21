@@ -56,6 +56,33 @@ The application is divided into separate tasks for sensor processing, user inter
 - Task notifications are used for communication between interrupts and tasks.
 - Event Groups are used to monitor task activity with a software watchdog mechanism.
 - Tasks use RTOS delays instead of blocking delays where periodic execution is required.
+
+```plaintext
+                   ┌───────────────────────────────────┐
+                   │        ST7789 TFT Display         │
+                   └─────────────────▲─────────────────┘
+                                     │ SPI
+                   ┌─────────────────┴─────────────────┐
+                   │       TI MSPM0G3507 (Host)        │
+                   │    ┌─────────────────────────┐    │
+                   │    │     FreeRTOS Kernel     │    │
+                   │    │  • Tasks • EventGroups  │    │
+                   │    │  • Task Notifications   │    │
+                   │    └─────────────────────────┘    │
+                   └───────▲───────────────────▲───────┘
+                           │ I2C               │ UART (AT Commands)
+         ┌─────────────────┴─────────┐         │
+         │           │               │         ▼
+   ┌─────┴────┐ ┌────┴─────┐ ┌───────┴──────┐ ┌─────────────────┐
+   │  BME280  │ │  DS1307  │ │   QMC5883L   │ │     ESP8266     │
+   │ (Env.)   │ │  (RTC)   │ │  (Magneto.)  │ └────────▲────────┘
+   └──────────┘ └──────────┘ └──────────────┘          │ Wi-Fi / HTTP
+                                                       ▼
+                                              ┌─────────────────┐
+                                              │ Python Backend  │
+                                              │  (REST Service) │
+                                              └─────────────────┘
+
 ## Project Structure
 ```text
 Full_Proje/
