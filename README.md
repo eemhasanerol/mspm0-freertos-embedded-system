@@ -1,66 +1,97 @@
-## Example Summary
+# FreeRTOS-Based Embedded System
 
-The blink LED demo is a simple demo that implements a blinking LED with
-FreeRTOS's tickless idle mode. The LED blinks every 1 second.
+Embedded system developed on the TI MSPM0G3507 using C and FreeRTOS.
 
-## Peripherals & Pin Assignments
+The system reads data from multiple sensors, connects to the internet through an ESP8266 Wi-Fi module, and displays both local and online data on an ST7789 TFT display.
 
-| Peripheral | Pin | Function |
-| --- | --- | --- |
-| GPIOA | PA0 | Open-Drain Output |
-| SYSCTL |  |  |
-| EVENT |  |  |
-| DEBUGSS | PA20 | Debug Clock |
-| DEBUGSS | PA19 | Debug Data In Out |
+## Features
 
-## BoosterPacks, Board Resources & Jumper Settings
+- FreeRTOS-based multi-task application
+- BME280 temperature, humidity, and pressure measurement
+- DS1307 real-time clock (RTC)
+- QMC5883L magnetometer for compass heading
+- ESP8266 Wi-Fi communication over UART using AT commands
+- Wi-Fi credential storage in Flash memory
+- Online and Offline operating modes
+- Weather and financial data retrieval from a Python backend over HTTP
+- ST7789 TFT display for sensor, internet, RTC, and compass data
 
-Visit [LP_MSPM0G3507](https://www.ti.com/tool/LP-MSPM0G3507) for LaunchPad information, including user guide and hardware files.
+## Hardware
 
-| Pin | Peripheral | Function | LaunchPad Pin | LaunchPad Settings |
-| --- | --- | --- | --- | --- |
-| PA0 | GPIOA | PA0 | J27_9 | <ul><li>PA0 is 5V tolerant open-drain so it requires pull-up<br><ul><li>`J19 1:2` Use 3.3V pull-up<br><li>`J19 2:3` Use 5V pull-up</ul><br><li>PA0 can be connected to LED1<br><ul><li>`J4 ON` Connect to LED1<br><li>`J4 OFF` Disconnect from LED1</ul></ul> |
-| PA20 | DEBUGSS | SWCLK | N/A | <ul><li>PA20 is used by SWD during debugging<br><ul><li>`J101 15:16 ON` Connect to XDS-110 SWCLK while debugging<br><li>`J101 15:16 OFF` Disconnect from XDS-110 SWCLK if using pin in application</ul></ul> |
-| PA19 | DEBUGSS | SWDIO | N/A | <ul><li>PA19 is used by SWD during debugging<br><ul><li>`J101 13:14 ON` Connect to XDS-110 SWDIO while debugging<br><li>`J101 13:14 OFF` Disconnect from XDS-110 SWDIO if using pin in application</ul></ul> |
+| Component | Description |
+|-----------|-------------|
+| TI MSPM0G3507 | Main microcontroller |
+| BME280 | Temperature, humidity, and pressure sensor |
+| DS1307 | Real-time clock (RTC) |
+| QMC5883L | 3-axis magnetometer |
+| ESP8266 | Wi-Fi module |
+| ST7789 | TFT display |
 
-### Device Migration Recommendations
-This project was developed for a superset device included in the LP_MSPM0G3507 LaunchPad. Please
-visit the [CCS User's Guide](https://software-dl.ti.com/msp430/esd/MSPM0-SDK/latest/docs/english/tools/ccs_ide_guide/doc_guide/doc_guide-srcs/ccs_ide_guide.html#manual-migration)
-for information about migrating to other MSPM0 devices.
+## Software Architecture
 
-### Low-Power Recommendations
-TI recommends to terminate unused pins by setting the corresponding functions to
-GPIO and configure the pins to output low or input with internal
-pullup/pulldown resistor.
+The project is organized into separate layers for application logic, device drivers, hardware-specific functions, and user interface code.
 
-SysConfig allows developers to easily configure unused pins by selecting **Board**→**Configure Unused Pins**.
+- `APP/` – Application logic, system initialization, and internet data handling
+- `Drivers/` – Device drivers for BME280, DS1307, QMC5883L, ESP8266, and ST7789
+- `Platform/` – MCU-specific communication and hardware interface functions
+- `UI/` – Display screens and compass interface
+## Communication Interfaces
 
-For more information about jumper configuration to achieve low-power using the
-MSPM0 LaunchPad, please visit the [LP-MSPM0G3507 User's Guide](https://www.ti.com/lit/slau873).
+- I2C – Communication with BME280, DS1307, and QMC5883L
+- UART – Communication with ESP8266 using AT commands
+- SPI – Communication with ST7789 TFT display
+## Online and Offline Operation
 
-## Example Usage
+The system supports both online and offline operating modes.
 
-* For **CCS**:
-    Compile, load and run the example.
-* For **Keil**:
-    The .uvmpw project workspace file shall be used to bring the example project along with the freertos project to the IDE.
-    In Keil uVision,
-    * Select **Project** → **Batch Setup**
-    * Select all the project targets for the build
-    * Select **Project** → **Batch Build**, it will build all the projects in the workspace.
-* For **IAR**:
-    The .eww project workspace file shall be used to bring the example project along with the freertos project to the IDE.
-    In IAR IDE:
-    * Select **Project** → **Rebuild All**
-    * It should first build Freertos project followed by example project.
+- Wi-Fi credentials are stored in Flash memory and reused after reset.
+- The ESP8266 connects to the configured Wi-Fi network using AT commands.
+- In Online mode, weather and financial data are retrieved from a Python backend over HTTP.
+- In Offline mode, local sensor, RTC, and compass data remain available without an internet connection.
+## FreeRTOS Architecture
 
-LED1 will blink every 1s when the example run.
+The application is divided into separate tasks for sensor processing, user interface, Wi-Fi communication, button handling, and system monitoring.
 
-## Application Design Details
-
-* This example shows how two tasks coordinate to blink LED1 every 1s.
-* In order to blink LED1, one task passes a queue message every second to another task.
-
-### FREERTOS:
-
-* Please view the FreeRTOSConfig.h header file for example configuration information.
+- FreeRTOS tasks are used to separate the main system functions.
+- Task notifications are used for communication between interrupts and tasks.
+- Event Groups are used to monitor task activity with a software watchdog mechanism.
+- Tasks use RTOS delays instead of blocking delays where periodic execution is required.
+## Project Structure
+```text
+Full_Proje/
+├── APP/
+│   ├── app_init.c
+│   ├── internet_data.c
+│   └── main.c
+│
+├── Drivers/
+│   ├── bme280/
+│   ├── ds1307/
+│   ├── esp8266/
+│   ├── qmc5883l/
+│   └── st7789/
+│
+├── Platform/
+│   ├── platform.c
+│   └── platform.h
+│
+├── UI/
+│   ├── compass_screen.c
+│   ├── offline_screen.c
+│   └── wifi_screen.c
+│
+├── freertos/
+├── Full_Proje.syscfg
+└── mspm0g3507.cmd
+## Development Environment  
+- TI Code Composer Studio (CCS)
+- TI MSPM0 SDK
+- SysConfig
+- FreeRTOS
+- C
+## Build and Run
+1. Open the project in TI Code Composer Studio.
+2. Make sure the MSPM0 SDK and SysConfig are installed.
+3. Connect the LP-MSPM0G3507 LaunchPad.
+4. Build the project.
+5. Flash and run the application on the target board.
