@@ -58,47 +58,28 @@ The application is divided into separate tasks for sensor processing, user inter
 - Tasks use RTOS delays instead of blocking delays where periodic execution is required.
 ## System Architecture
 
-```text
-                         ┌─────────────────────────┐
-                         │   ST7789 TFT Display    │
-                         └────────────▲────────────┘
-                                      │ SPI
-                                      │
-                         ┌────────────┴────────────┐
-                         │      TI MSPM0G3507      │
-                         │                         │
-                         │    ┌───────────────┐    │
-                         │    │   FreeRTOS    │    │
-                         │    │               │    │
-                         │    │ • Tasks       │    │
-                         │    │ • Event Groups│    │
-                         │    │ • Task Notify │    │
-                         │    └───────┬───────┘    │
-                         │            │ Feed       │
-                         │    ┌───────▼───────┐    │
-                         │    │ Watchdog Timer│    │
-                         │    │ (WWDT / IWDT) │    │
-                         │    └───────────────┘    │
-                         └──────┬───────────┬──────┘
-                                │           │
-                            I2C │           │ UART
-                                │           │ AT Commands
-                  ┌─────────────┼───────┐   │
-                  │             │       │   ▼
-             ┌────▼────┐  ┌────▼───┐ ┌─▼────────┐   ┌─────────────┐
-             │ BME280  │  │ DS1307 │ │ QMC5883L │   │   ESP8266   │
-             │ Temp.   │  │  RTC   │ │ Compass  │   │    Wi-Fi    │
-             │ Humidity│  └────────┘ └──────────┘   └──────┬──────┘
-             │ Pressure│                                   │
-             └─────────┘                              Wi-Fi / HTTP
-                                                           │
-                                                           ▼
-                                                   ┌───────────────┐
-                                                   │ Python Backend│
-                                                   │ Weather /     │
-                                                   │ Financial Data│
-                                                   └───────────────┘
-```
+ ┌──────────┐
+ │  BME280  │──┐
+ └──────────┘  │
+               │ I2C
+ ┌──────────┐  │       ┌────────────────────────────┐       ┌─────────────┐
+ │  DS1307  │──┼──────►│       TI MSPM0G3507       │──SPI─►│   ST7789    │
+ └──────────┘  │       │                            │       │ TFT Display │
+               │       │  ┌──────────────────────┐  │       └─────────────┘
+ ┌──────────┐  │       │  │       FreeRTOS       │  │
+ │ QMC5883L │──┘       │  │ • Tasks              │  │       ┌─────────────┐
+ └──────────┘          │  │ • Event Groups       │  │─UART─►│   ESP8266   │
+                       │  │ • Task Notifications │  │       │    Wi-Fi    │
+ ┌──────────┐          │  └──────────────────────┘  │       └──────┬──────┘
+ │  Button  │─GPIO/IRQ►│                            │              │
+ └──────────┘          │  ┌──────────────────────┐  │         Wi-Fi / HTTP
+                       │  │    Watchdog Timer    │  │              │
+                       │  │        (WWDT)        │  │              ▼
+                       │  └──────────────────────┘  │       ┌──────────────┐
+                       └────────────────────────────┘       │Python Backend│
+                                                          │Weather /     │
+                                                          │Financial Data│
+                                                          └──────────────┘
 ```
 ## Project Structure
 ```text
