@@ -57,34 +57,38 @@ The application is divided into separate tasks for sensor processing, user inter
 - Event Groups are used to monitor task activity with a software watchdog mechanism.
 - Tasks use RTOS delays instead of blocking delays where periodic execution is required.
 ## System Architecture
-```plaintext
- ┌──────────┐
- │  BME280  │──┐
- └──────────┘  │
-               │ I2C
- ┌──────────┐  │       ┌────────────────────────────────┐       ┌─────────────┐
- │  DS1307  │──┼──────►│        TI MSPM0G3507          │──SPI─►│   ST7789    │
- └──────────┘  │       │                                │       │ TFT Display │
-               │       │  ┌──────────────────────────┐  │       └─────────────┘
- ┌──────────┐  │       │  │        FreeRTOS          │  │
- │ QMC5883L │──┘       │  │                          │  │       ┌─────────────┐
- └──────────┘          │  │ • Application Tasks      │  │─UART─►│   ESP8266   │
-                       │  │ • Task Notifications     │  │       │    Wi-Fi    │
- ┌──────────┐          │  │ • Event Groups           │  │       └──────┬──────┘
- │  Button  │─GPIO/IRQ►│  └────────────┬─────────────┘  │              │
- └──────────┘          │               │ Task Health    │         Wi-Fi / HTTP
-                       │               ▼                │              │
-                       │  ┌──────────────────────────┐  │              ▼
-                       │  │   Watchdog/Supervisor    │  │       ┌───────────────┐
-                       │  │          Task            │  │       │ Python Backend│
-                       │  └────────────┬─────────────┘  │       │ Weather /     │
-                       │               │ Feed           │       │ Financial Data│
-                       │               ▼                │       └───────────────┘
-                       │  ┌──────────────────────────┐  │
-                       │  │   Hardware Watchdog     │  │
-                       │  │          WWDT            │  │
-                       │  └──────────────────────────┘  │
-                       └────────────────────────────────┘q
+
+```text
+ ┌─────────────┐
+ │   BME280    │──┐
+ │ Temp. / Hum.│  │
+ │  / Pressure │  │
+ └─────────────┘  │
+                  │ I2C
+ ┌─────────────┐  │       ┌────────────────────────────────┐       ┌─────────────┐
+ │   DS1307    │──┼──────►│        TI MSPM0G3507          │──SPI─►│   ST7789    │
+ │     RTC     │  │       │                                │       │ TFT Display │
+ └─────────────┘  │       │  ┌──────────────────────────┐  │       └─────────────┘
+                  │       │  │        FreeRTOS          │  │
+ ┌─────────────┐  │       │  │                          │  │       ┌─────────────┐
+ │  QMC5883L   │──┘       │  │ • Application Tasks      │  │─UART─►│   ESP8266   │
+ │   Compass   │          │  │ • Task Notifications     │  │       │    Wi-Fi    │
+ └─────────────┘          │  │ • Event Groups           │  │       └──────┬──────┘
+                          │  └────────────┬─────────────┘  │              │
+ ┌─────────────┐          │               │ Task Status    │         Wi-Fi / HTTP
+ │   Button    │─GPIO/IRQ►│               ▼                │              │
+ └─────────────┘          │  ┌──────────────────────────┐  │              ▼
+                          │  │      Watchdog Task       │  │       ┌───────────────┐
+                          │  │  Task Health Monitoring  │  │       │ Python Backend│
+                          │  └────────────┬─────────────┘  │       │ Weather /     │
+                          │               │ Feed           │       │ Financial Data│
+                          │               ▼                │       └───────────────┘
+                          │  ┌──────────────────────────┐  │
+                          │  │    Hardware Watchdog     │  │
+                          │  │          WWDT            │  │
+                          │  └──────────────────────────┘  │
+                          └────────────────────────────────┘
+```
 ```
 ## Project Structure
 ```text
