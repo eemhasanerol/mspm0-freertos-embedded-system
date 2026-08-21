@@ -57,7 +57,7 @@ The application is divided into separate tasks for sensor processing, user inter
 - Event Groups are used to monitor task activity with a software watchdog mechanism.
 - Tasks use RTOS delays instead of blocking delays where periodic execution is required.
 ## System Architecture
-
+```plaintext
  ┌──────────┐
  │  BME280  │──┐
  └──────────┘  │
