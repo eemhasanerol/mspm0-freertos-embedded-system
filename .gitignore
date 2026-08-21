@@ -1,0 +1,8 @@
+Debug/
+Release/
+
+*.o
+*.out
+*.map
+*.d
+*.d_raw
