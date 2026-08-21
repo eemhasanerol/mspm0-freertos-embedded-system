@@ -56,15 +56,16 @@ The application is divided into separate tasks for sensor processing, user inter
 - Task notifications are used for communication between interrupts and tasks.
 - Event Groups are used to monitor task activity with a software watchdog mechanism.
 - Tasks use RTOS delays instead of blocking delays where periodic execution is required.
+## System Architecture
 
-```plaintext
+```text
                          ┌─────────────────────────┐
-                         │    ST7789 TFT Display   │
+                         │   ST7789 TFT Display    │
                          └────────────▲────────────┘
                                       │ SPI
                                       │
                          ┌────────────┴────────────┐
-                         │     TI MSPM0G3507       │
+                         │      TI MSPM0G3507      │
                          │                         │
                          │    ┌───────────────┐    │
                          │    │   FreeRTOS    │    │
@@ -72,6 +73,11 @@ The application is divided into separate tasks for sensor processing, user inter
                          │    │ • Tasks       │    │
                          │    │ • Event Groups│    │
                          │    │ • Task Notify │    │
+                         │    └───────┬───────┘    │
+                         │            │ Feed       │
+                         │    ┌───────▼───────┐    │
+                         │    │ Watchdog Timer│    │
+                         │    │ (WWDT / IWDT) │    │
                          │    └───────────────┘    │
                          └──────┬───────────┬──────┘
                                 │           │
@@ -92,6 +98,7 @@ The application is divided into separate tasks for sensor processing, user inter
                                                    │ Weather /     │
                                                    │ Financial Data│
                                                    └───────────────┘
+```
 ```
 ## Project Structure
 ```text
