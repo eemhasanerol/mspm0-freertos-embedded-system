@@ -75,7 +75,7 @@ The application is divided into separate tasks for sensor processing, user inter
  └──────────┘          │               │ Task Health    │         Wi-Fi / HTTP
                        │               ▼                │              │
                        │  ┌──────────────────────────┐  │              ▼
-                       │  │   Watchdog/Supervisor   │  │       ┌───────────────┐
+                       │  │   Watchdog/Supervisor    │  │       ┌───────────────┐
                        │  │          Task            │  │       │ Python Backend│
                        │  └────────────┬─────────────┘  │       │ Weather /     │
                        │               │ Feed           │       │ Financial Data│
