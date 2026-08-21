@@ -92,6 +92,7 @@ The application is divided into separate tasks for sensor processing, user inter
                                                    │ Weather /     │
                                                    │ Financial Data│
                                                    └───────────────┘
+```
 ## Project Structure
 ```text
 Full_Proje/
