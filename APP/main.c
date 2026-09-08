@@ -2,13 +2,11 @@
 
 
 
-
-
-
 int main(void)
 {
 
     app_init();
+
 
     vTaskStartScheduler();
 

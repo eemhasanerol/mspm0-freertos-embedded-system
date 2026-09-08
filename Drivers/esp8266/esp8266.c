@@ -46,7 +46,7 @@ bool wifi_read(void)
     volatile uint16_t i = 0;
     
     // Kronometreyi başlatıyoruz (Sadece milisaniye sayacını okuyoruz, uyuma yok!)
-    const uint32_t timeout = 23000000;
+    const uint32_t timeout = 100;//23000000
     volatile uint32_t sayac = 0;
 
     while (1) 
@@ -292,7 +292,7 @@ bool esp_wifi_kur_ve_baglan(void)
     DL_GPIO_setPins(ESP8266_PORT, ESP8266_RST_PIN);
     vTaskDelay(pdMS_TO_TICKS(1000));     
     
-    UART_writeString("AT+CWAUTOCONN=0\r\n");
+    //UART_writeString("AT+CWAUTOCONN=0\r\n");
     vTaskDelay(pdMS_TO_TICKS(100));
     
     char okunan_string[64] = {0};
@@ -327,6 +327,14 @@ bool esp_wifi_kur_ve_baglan(void)
         UART_writeString("AT+CWMODE=1\r\n"); 
         delay_ms(500);
         
+
+
+        UART_writeString("AT+CWJAP=\"hasanerol\",\"hasanerol12\"\r\n");
+        delay_ms(10000);
+
+        return 1;
+        /*
+        
         UART_writeString("AT+CWSTARTSMART=3\r\n"); // Havayı dinlemeye başla hoca
         delay_ms(500);
 
@@ -355,7 +363,9 @@ bool esp_wifi_kur_ve_baglan(void)
             UART_writeString("AT+CWSTOPSMART\r\n");
             delay_ms(200);
             return false;
-        }
+        }*/
+
+
     }
 
     return false;

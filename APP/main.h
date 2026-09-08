@@ -6,7 +6,7 @@
 #include <stdio.h>
 
 // TI Donanım Altyapısı
-#include "ti_msp_dl_config.h"
+#include "ti_msp_dl_config.h" 
 
 // FreeRTOS Çekirdek Kütüphaneleri
 #include "FreeRTOS.h"

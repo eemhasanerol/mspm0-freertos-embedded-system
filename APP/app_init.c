@@ -7,6 +7,11 @@ static qmc5883l_dev qmc_dev;
 
 volatile ConnState_t g_connection_state = CONN_STATE_CHECKING;
 volatile ScreenState_t g_current_screen = SCREEN_MAIN_OFFLINE;
+static EventGroupHandle_t xWatchdogEventGroup = NULL;
+
+
+#define BIT_GUI_TASK      (1U << 0)
+#define BIT_COMPASS_TASK  (1U << 1)
 
 
 TaskHandle_t xWifiInitTaskHandle = NULL;
@@ -15,10 +20,14 @@ TaskHandle_t xCompassTaskHandle = NULL;
 TaskHandle_t xButtonTaskHandle = NULL;
 TaskHandle_t xWatchdogTaskHandle = NULL;
 
-EventGroupHandle_t xWatchdogEventGroup = NULL;
-#define BIT_COMPASS_TASK    (1 << 0)  // 0x01
-#define BIT_GUI_TASK        (1 << 1)  // 0x02
-#define BIT_BUTTON_TASK     (1 << 2)  // 0x04
+
+static QueueHandle_t xCompassQueue = NULL;
+
+
+void SYSCFG_DL_WWDT0_init(void)
+{
+    // SysConfig'in weak fonksiyonunu eziyoruz; içi boş olduğu için boot'ta başlamaz
+}
 
 void clock_init(void)
 {
@@ -95,15 +104,13 @@ void qmc_init(void)
 void periph_init(void)
 {
     SYSCFG_DL_init();
-    
-    SYSCFG_DL_WDT_init();
-
     NVIC_EnableIRQ(JOY_INT_IRQN);
+    
+    qmc_init();  
+    bme_init();       // BME280 Sensör Başlatma
+    clock_init();     // DS1307 Saat Başlatma
 
     ST7789_Init();    // Ekran Başlatma
-    clock_init();     // DS1307 Saat Başlatma
-    bme_init();       // BME280 Sensör Başlatma
-    qmc_init();  
 }
 
 void GROUP1_IRQHandler(void)
@@ -121,82 +128,97 @@ void GROUP1_IRQHandler(void)
 
 static void vWatchdogTask(void *pvParameters)
 {
-    uint32_t expected_bits = 0;
+    EventBits_t required_bits;
+    EventBits_t received_bits;
 
+    DL_WWDT_initWatchdogMode(WWDT0_INST, DL_WWDT_CLOCK_DIVIDE_4,
+        DL_WWDT_TIMER_PERIOD_18_BITS, DL_WWDT_STOP_IN_SLEEP,
+        DL_WWDT_WINDOW_PERIOD_0, DL_WWDT_WINDOW_PERIOD_0);
+
+    /* Set Window0 as active window */
+    DL_WWDT_setActiveWindow(WWDT0_INST, DL_WWDT_WINDOW0);
+    /* 3. Sayacı İLK KEZ burada tetikle (Sayaç şimdi geri saymaya başlar!) */
+    DL_WWDT_restart(WWDT0_INST);
+    
     for (;;)
     {
-        // Aktif ekrana göre hangi bitleri (kartları) bekleyeceğimizi dinamik seçiyoruz
+
         if (g_current_screen == SCREEN_COMPASS)
+                {
+                    // Pusula ekranındayken hem GUI hem Pusula canlı olmalı
+                    required_bits = BIT_GUI_TASK | BIT_COMPASS_TASK;
+                }
+                else
+                {
+                    // Ana ekranda sadece GUI canlı olsun yeter
+                    required_bits = BIT_GUI_TASK;
+                }
+
+                // Bitleri bekle (pdFALSE: biz besleyene kadar silinmesin)
+                received_bits = xEventGroupWaitBits(
+                    xWatchdogEventGroup,
+                    required_bits,
+                    pdTRUE,
+                    pdTRUE,              // required_bits içindeki TÜM bitler gelmeli (AND şartı)
+                    pdMS_TO_TICKS(5000)
+    );
+    
+        // Gerekli tüm bitler geldiyse donanımı besle ve temizle
+        if ((received_bits & required_bits) == required_bits)
         {
-            expected_bits = BIT_COMPASS_TASK | BIT_BUTTON_TASK;
-        }
-        else
-        {
-            expected_bits = BIT_GUI_TASK | BIT_BUTTON_TASK;
+            DL_WWDT_restart(WWDT0_INST);
+            xEventGroupClearBits(xWatchdogEventGroup, required_bits);
         }
 
-        // Kartların tamamlanmasını maksimum 1.5 saniye bekliyoruz
-        EventBits_t uxBits = xEventGroupWaitBits(
-                                xWatchdogEventGroup,
-                                expected_bits,
-                                pdTRUE,        // Okununca bitleri otomatik temizle
-                                pdTRUE,        // Beklenenlerin TÜMÜNÜN gelmesini bekle
-                                pdMS_TO_TICKS(1500) // Zaman aşımı süresi
-                             );
-
-        // Eğer beklediğimiz tüm kartlar zamanında takıldıysa sistem sağlıklıdır
-        if ((uxBits & expected_bits) == expected_bits)
-        {
-            DL_WWDT_restart(WDT_INST); // TI Donanımsal Watchdog'u besle!
-        }
-        else
-        {
-            // Eyvah! Görevlerden biri kilitlendi. Köpeği BESLEMİYORUZ.
-            // Biz beslemeyi kesince 4 saniyelik donanım süresi dolacak ve işlemci reset yiyecek.
-            while(1); 
-        }
+        /*
+         * Eksik bit varsa hiçbir şey yapmıyoruz.
+         * WWDT beslenmez.
+         *
+         * Problem devam ederse yaklaşık 4 saniye sonra
+         * hardware reset oluşur.
+         */
     }
 }
-
-
 
 
 static void vCompassTask(void *pvParameters)
 {
     float heading = 0.0f;
-    float old_heading = -999.0f; // İlk açılışta zorunlu çizim tetiklensin diye sahte bir başlangıç değeri veriyoruz
+    float old_heading = -999.0f;
+
     for (;;)
     {
-        if (qmc5883l_get_heading(&qmc_dev, &heading) == QMC5883L_OK)
-        {
-            if (fabsf(heading - old_heading) > 3.0f)
-            {
-                UI_CompassScreen_DrawNeedle(
-                    old_heading,
-                    ST7789_COLOR_BLACK
-                );
-
-                UI_CompassScreen_DrawNeedle(
-                    heading,
-                    ST7789_COLOR_RED
-                );
-
-                old_heading = heading;
-            }
-        }
-
         
-        if (xWatchdogEventGroup != NULL) {
+        // 1. Eğer pusula ekranında DEĞİLSEK, bildirim gelene kadar UYU (0 CPU tüketimi)
+        if (g_current_screen != SCREEN_COMPASS)
+        {
+            // Bildirim gelene kadar burada Blocked bekler, stack harcamaz
+            ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        }
+        
+
+        while (g_current_screen == SCREEN_COMPASS)
+        {
+            if (qmc5883l_get_heading(&qmc_dev, &heading) == QMC5883L_OK)
+            {
+                if (fabsf(heading - old_heading) > 3.0f)
+                {
+                    xQueueSend(xCompassQueue, &heading, 0);                    
+                    old_heading = heading;
+                }
+            }
             xEventGroupSetBits(xWatchdogEventGroup, BIT_COMPASS_TASK);
+
+            vTaskDelay(pdMS_TO_TICKS(50));  
         }
 
-        vTaskDelay(pdMS_TO_TICKS(10));
     }
 }
 
-// Kalıcı Sensör Güncelleme Thread'i
-static void vGuiTask(void *pvParameters) {
 
+// Kalıcı Sensör Güncelleme Thread'i
+static void vGuiTask(void *pvParameters) 
+{
     if (g_connection_state == CONN_STATE_OFFLINE) 
     {
         UI_OfflineScreen_DrawBackground();
@@ -205,26 +227,84 @@ static void vGuiTask(void *pvParameters) {
         UI_WifiScreen_DrawBackground();
     }
 
-    for (;;) 
+    float compass_heading = 0.0f;
+    float old_drawn_heading = 0.0f;
+
+    ScreenState_t previous_screen = g_current_screen;
+
+for (;;)
     {
-        // Sadece offline durum için doğrudan sensörleri güncelliyoruz
-        if (g_connection_state == CONN_STATE_OFFLINE) 
+        // EKRAN DEĞİŞMİŞ Mİ?
+        if (g_current_screen != previous_screen)
         {
-            UI_OfflineScreen_UpdateBME280(&bme);
-            UI_OfflineScreen_UpdateClock(&rtc);
-        }else if(g_connection_state == CONN_STATE_WIFI_OK){
+            switch (g_current_screen)
+            {
+                case SCREEN_COMPASS:
+                    UI_CompassScreen_DrawBackground();
+                    old_drawn_heading = 0.0f;
+                    break;
 
-            UI_WifiScreen_Update();
-            UI_WifiScreen_UpdateClock(&rtc);
+                case SCREEN_MAIN_WIFI:
+                    UI_WifiScreen_DrawBackground();
+                    break;
+
+                case SCREEN_MAIN_OFFLINE:
+                    UI_OfflineScreen_DrawBackground();
+                    break;
+
+                default:
+                    break;
+            }
+
+            previous_screen = g_current_screen;
         }
-        
 
-        if (xWatchdogEventGroup != NULL) 
+        switch (g_current_screen)
         {
-            xEventGroupSetBits(xWatchdogEventGroup, BIT_COMPASS_TASK);
+            case SCREEN_COMPASS:
+
+                if (xQueueReceive(xCompassQueue, &compass_heading, pdMS_TO_TICKS(20)) == pdPASS)
+                {
+                    UI_CompassScreen_DrawNeedle(
+                        old_drawn_heading,
+                        ST7789_COLOR_BLACK
+                    );
+
+                    UI_CompassScreen_DrawNeedle(
+                        compass_heading,
+                        ST7789_COLOR_RED
+                    );
+
+                    old_drawn_heading = compass_heading;
+                }
+
+                break;
+
+
+            case SCREEN_MAIN_WIFI:
+
+                UI_WifiScreen_Update();
+                UI_WifiScreen_UpdateClock(&rtc);
+                vTaskDelay(pdMS_TO_TICKS(2000));
+                break;
+
+
+            case SCREEN_MAIN_OFFLINE:
+
+                UI_OfflineScreen_UpdateBME280(&bme);
+                UI_OfflineScreen_UpdateClock(&rtc);
+
+                vTaskDelay(pdMS_TO_TICKS(2000));
+                break;
+
+            default:
+
+                vTaskDelay(pdMS_TO_TICKS(500));
+                break;
         }
-        // 1 saniyede bir çalışması için gecikme
-        vTaskDelay(pdMS_TO_TICKS(1000)); 
+
+        xEventGroupSetBits(xWatchdogEventGroup, BIT_GUI_TASK);
+
     }
 }
 
@@ -232,73 +312,45 @@ void vButtonTask(void *pvParameters)
 {
     for (;;)
     {
-        // 1. Butona basılana kadar task burada uyur, işlemciyi asla yormaz
+        // Butona basılana kadar BLOCKED durumda bekle
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
 
-        // --- DURUM A: ANA EKRANDAYIZ (Pusulaya geçeceğiz) ---
-        if ((g_current_screen == SCREEN_MAIN_WIFI) || (g_current_screen == SCREEN_MAIN_OFFLINE))      
+        // ANA EKRAN -> PUSULA
+        if ((g_current_screen == SCREEN_MAIN_WIFI) || (g_current_screen == SCREEN_MAIN_OFFLINE))
         {
-            // Yeni ekran durumunu pusula yapıyoruz
             g_current_screen = SCREEN_COMPASS;
-            
-            // 1. Gui (Ekran) güncelleme task'ını durdur (Suspend)
-            if (xGuiTaskHandle != NULL) {
-                vTaskSuspend(xGuiTaskHandle);
-            }
 
-            // 2. Pusula statik arka planını çiz
-            UI_CompassScreen_DrawBackground();
-
-            // 3. Pusula güncelleme task'ını aktif et (Resume)
-            if (xCompassTaskHandle != NULL) {
-                vTaskResume(xCompassTaskHandle);
+            // CompassTask'ı uyandır
+            if (xCompassTaskHandle != NULL)
+            {
+                xTaskNotifyGive(xCompassTaskHandle);
             }
         }
-        // --- DURUM B: PUSULADAYIZ (Ana ekrana geri döneceğiz) ---
+
+        // PUSULA -> ANA EKRAN
         else if (g_current_screen == SCREEN_COMPASS)
         {
-            // 1. Pusula task'ını durdur (Suspend)
-            if (xCompassTaskHandle != NULL) {
-                vTaskSuspend(xCompassTaskHandle);
-            }
-      
-            // 2. Wi-Fi bağlantı kontrolü yapıp uygun arka planı çiziyoruz hoca!
             if (g_connection_state == CONN_STATE_WIFI_OK)
             {
                 g_current_screen = SCREEN_MAIN_WIFI;
-                UI_WifiScreen_DrawBackground(); // Wifi'lı statik arka plan
             }
             else
             {
                 g_current_screen = SCREEN_MAIN_OFFLINE;
-                UI_OfflineScreen_DrawBackground(); // Çevrimdışı statik arka plan
-            }  
-
-            // 3. Gui (Ekran) güncelleme task'ını tekrar aktif et (Resume)
-            if (xGuiTaskHandle != NULL) {
-                vTaskResume(xGuiTaskHandle);
             }
         }
 
-        if (xWatchdogEventGroup != NULL) 
-        {
-            xEventGroupSetBits(xWatchdogEventGroup, BIT_COMPASS_TASK);
-        }
-      
-        // --- Debounce ve Kararlılık Bölümü (Donanım gürültüsünü önler) ---
+        // Debounce
         vTaskDelay(pdMS_TO_TICKS(100));
+
         while (DL_GPIO_readPins(JOY_PORT, JOY_BUTTON_PIN) == 0)
         {
             vTaskDelay(pdMS_TO_TICKS(20));
         }
-        vTaskDelay(pdMS_TO_TICKS(100));
 
-        // Kesme durumunu ve bildirimleri temizle
-        DL_GPIO_clearInterruptStatus(JOY_PORT, JOY_BUTTON_PIN);
-        xTaskNotifyStateClear(NULL);
+        vTaskDelay(pdMS_TO_TICKS(10));
     }
 }
-
 
 
 
@@ -311,11 +363,11 @@ static void vWifiInitTask(void *pvParameters)
     
     // Ekrana başlangıç bilgisini yazdır
     ST7789_FillScreen(ST7789_COLOR_BLACK);
-    ST7789_WriteString(10, 100, "Sistem Baslatiliyor...", Font_7x10, ST7789_COLOR_WHITE, ST7789_COLOR_BLACK);
+    ST7789_WriteString(10, 100, "Wi-Fi Araniyor", Font_7x10, ST7789_COLOR_WHITE, ST7789_COLOR_BLACK);
 
     // Wi-Fi bağlantısını dene (Bu sırada arkada RTOS kilitlenmez)
     bool wifi_baglandi = esp_wifi_kur_ve_baglan();
-    delay_ms(10000);
+    delay_ms(10000);//500
 
 
     if (wifi_baglandi) {
@@ -331,16 +383,45 @@ static void vWifiInitTask(void *pvParameters)
         vTaskDelay(pdMS_TO_TICKS(1500));
     }
 
-    xTaskCreate(vButtonTask, "ButtonTask", 512, NULL, 5, &xButtonTaskHandle);
-    
-    xTaskCreate(vCompassTask, "CompassTask", 512, NULL, 4, &xCompassTaskHandle);
-    if (xCompassTaskHandle != NULL) {
-        vTaskSuspend(xCompassTaskHandle);
+    BaseType_t xReturned;
+    // ButtonTask: 512 yerine 192 word (Yaklaşık 768 byte, buton için fazlasıyla yeterli)
+    xReturned = xTaskCreate(vButtonTask, "ButtonTask", 192, NULL, 5, &xButtonTaskHandle);
+
+        if (xReturned != pdPASS)
+    {
+        // EĞER KOD BURAYA GİRİYORSA: 
+        // Kesinlikle Heap yetmemiştir (tek parça 3200 byte bulunamamıştır).
+        // Buraya bir breakpoint koyup durdurabilirsiniz!
+        while(1); 
     }
 
-    xTaskCreate(vGuiTask, "GuiTask", 512, NULL, 4, &xGuiTaskHandle);
-    xTaskCreate(vWatchdogTask, "WatchdogTask", 512, NULL, 6, &xWatchdogTaskHandle);
-
+    // GuiTask: 512 yerine 384 word (1536 byte, ekrana çizim için güvenli pay bırakır)
+    xReturned = xTaskCreate(vGuiTask, "GuiTask", 800, NULL, 4, &xGuiTaskHandle);
+    if (xReturned != pdPASS)
+{
+    // EĞER KOD BURAYA GİRİYORSA: 
+    // Kesinlikle Heap yetmemiştir (tek parça 3200 byte bulunamamıştır).
+    // Buraya bir breakpoint koyup durdurabilirsiniz!
+    while(1); 
+}
+    // CompassTask: 512 yerine 768 veya 1024 word (Taşmayı kesin çözer)
+    xReturned = xTaskCreate(vCompassTask, "CompassTask", 512, NULL, 4, &xCompassTaskHandle);
+if (xReturned != pdPASS)
+{
+    // EĞER KOD BURAYA GİRİYORSA: 
+    // Kesinlikle Heap yetmemiştir (tek parça 3200 byte bulunamamıştır).
+    // Buraya bir breakpoint koyup durdurabilirsiniz!
+    while(1); 
+}
+    // WatchdogTask: 128 word (512 byte) gayet iyi, unused değeri 260 byte ile dengeli
+    xReturned = xTaskCreate(vWatchdogTask, "WatchdogTask", 128, NULL, 6, &xWatchdogTaskHandle);
+if (xReturned != pdPASS)
+{
+    // EĞER KOD BURAYA GİRİYORSA: 
+    // Kesinlikle Heap yetmemiştir (tek parça 3200 byte bulunamamıştır).
+    // Buraya bir breakpoint koyup durdurabilirsiniz!
+    while(1); 
+}
 
 
     xWifiInitTaskHandle = NULL;
@@ -349,12 +430,26 @@ static void vWifiInitTask(void *pvParameters)
 
 
 
-
+ 
 
 // --- main.c Tarafından Çağrılan Tek Başlatıcı Nokta ---
 void app_init(void) {
     // 1. Önce senin yazdığın donanım init fonksiyonunu çağırıyoruz
     periph_init();
+
+    xCompassQueue = xQueueCreate(1, sizeof(float));
+
+    if (xCompassQueue == NULL)
+    {
+        while (1);
+    }
+
+    xWatchdogEventGroup = xEventGroupCreate();
+
+    if (xWatchdogEventGroup == NULL)
+    {
+        while (1);
+    }
     
     // 2. Ardından FreeRTOS zamanlayıcısı başlamadan önce Wi-Fi task'ını kuruyoruz
     xTaskCreate(vWifiInitTask, "WifiInitTask", 2048, NULL, 4, &xWifiInitTaskHandle);

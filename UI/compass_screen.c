@@ -7,7 +7,7 @@ static void UI_Compass_DrawDirections(void)
     int cx = 120;
     int cy = 120;
 
-    struct
+    static const struct
     {
         int deg;
         const char *txt;
@@ -154,7 +154,10 @@ static void UI_Compass_DrawDegreeText(void)
     int cx = 120;
     int cy = 120;
 
-    char str[8];
+    static const char *deg_str[] = {
+        "0", "30", "60", "90", "120", "150",
+        "180", "210", "240", "270", "300", "330"
+    };
 
     for (int deg = 0; deg < 360; deg += 30)
     {
@@ -167,10 +170,7 @@ static void UI_Compass_DrawDegreeText(void)
         int y =
             cy + (int)(92 * sinf(rad));
 
-        snprintf(str, sizeof(str), "%d", deg);
-
-    snprintf(str, sizeof(str), "%d", deg);
-
+    const char *str = deg_str[deg / 30];
     int len = strlen(str);
 
     x -= (len * Font_7x10.width) / 2;

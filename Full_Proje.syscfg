@@ -90,6 +90,7 @@ SPI1.cs0PinConfig.passedPeripheralType  = scripting.forceWrite("Digital");
 SYSCTL.clockTreeEn = true;
 
 UART1.$name                            = "UART";
+UART1.targetBaudRate                   = 115200;
 UART1.peripheral.$assign               = "UART1";
 UART1.peripheral.rxPin.$assign         = "PA9";
 UART1.peripheral.txPin.$assign         = "PA8";
@@ -103,8 +104,8 @@ UART1.rxPinConfig.hideOutputInversion  = scripting.forceWrite(false);
 UART1.rxPinConfig.onlyInternalResistor = scripting.forceWrite(false);
 UART1.rxPinConfig.passedPeripheralType = scripting.forceWrite("Digital");
 
-WWDT1.$name       = "WDT";
-WWDT1.periodCount = "15";
+WWDT1.$name       = "WWDT0";
+WWDT1.periodCount = "18";
 
 ProjectConfig.genDisable = true;
 
