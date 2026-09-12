@@ -1,67 +1,107 @@
-# ⚙️ STM32F4 Bare-Metal Drivers
+# ⚙️ MSPM0G3507 FreeRTOS-Based Embedded System
 
-Bare-metal peripheral drivers developed for the STM32F407VG in Embedded C, without using HAL or LL libraries.
+A real-time embedded system developed on the TI MSPM0G3507 using FreeRTOS and Embedded C.
 
-The project focuses on understanding STM32 peripherals at register level and building modular, reusable driver APIs.
-
----
-
-## 🧩 Implemented Drivers
-
-- **RCC** – Clock configuration and peripheral clock control
-- **GPIO** – GPIO configuration and alternate function support
-- **SysTick** – Millisecond tick and delay functions
-- **EXTI** – External interrupt configuration and handling
-- **I2C** – Master communication and interrupt handling
-- **SPI** – Master communication
-- **USART** – Serial communication
+The system integrates sensors, Wi-Fi communication, an RTC, a magnetometer, and a TFT display. It operates in both online and offline modes depending on Wi-Fi availability.
 
 ---
 
-## 🔧 Driver Design
+## 🧩 System Features
 
-- Handle-based peripheral configuration
-- Enum-based configuration options
-- Status and error handling through return values
-- Configurable timeout for blocking operations
-- Interrupt support for GPIO/EXTI and I2C
-
----
-
-## 🧠 Example Projects
-
-The `/Examples` directory contains simple applications used to test the drivers on real hardware.
-
-| Example | Description |
-|---------|-------------|
-| `GPIO_LED_Toggle` | Toggles LEDs using a SysTick-based delay. |
-| `EXTI_Button_LED` | Controls an LED using an external button interrupt. |
-| `I2C_DeviceID_Read` | Reads a device ID register over I2C. |
-| `SPI_DeviceID_Read` | Reads a device register over SPI. |
+- **FreeRTOS** – Task-based system architecture and task management
+- **BME280** – Temperature, humidity, and pressure measurement
+- **DS1307** – Real-time clock and date information
+- **QMC5883L** – Compass and heading measurement
+- **ESP8266** – Wi-Fi connectivity and HTTP communication
+- **ST7789** – TFT display interface
+- **Flash Memory** – Persistent storage of Wi-Fi credentials
+- **Watchdog** – System recovery in case of a lockup
 
 ---
 
-## 🗂 Project Structure
+## ⚙️ FreeRTOS Design
 
-```text
-stm32f4-baremetal-drivers/
-│
-├── Core/                 # Startup code and SysTick
-├── Drivers/              # Peripheral drivers
-├── Examples/             # Example applications
-└── README.md
-```
+The application is divided into separate tasks for sensors, display, Wi-Fi, buttons, and system monitoring.
+
+- Task priority management
+- Stack size configuration
+- Task Notifications for task synchronization
+- Hardware watchdog for system monitoring
+
+---
+
+## 🔌 Peripheral Communication
+
+| Device | Interface | Purpose |
+|--------|-----------|---------|
+| BME280 | I2C | Temperature, humidity, and pressure |
+| DS1307 | I2C | Date and time |
+| QMC5883L | I2C | Compass heading |
+| ESP8266 | UART | Wi-Fi and HTTP communication |
+| ST7789 | SPI | TFT display |
+| Buttons | GPIO | User input |
+
+Drivers for the BME280, DS1307, and QMC5883L were developed using their datasheets. Callback functions are used to keep the sensor drivers independent of MCU-specific I2C code.
+
+---
+
+## 🌐 Online / Offline Operation
+
+### Offline Mode
+
+When Wi-Fi is unavailable, the system continues to provide:
+
+- Temperature, humidity, and pressure data
+- Date and time
+- Compass heading
+
+### Online Mode
+
+When Wi-Fi is available, the system also retrieves:
+
+- Weather information
+- Financial data
+
+The ESP8266 communicates with the MSPM0G3507 over UART using AT commands. HTTP responses are received and parsed on the MCU before the data is displayed on the ST7789 TFT.
+
+---
+
+## 🌍 Web Service
+
+A Python-based web service was developed to collect weather and financial data from different APIs.
+
+The data is combined and served through PythonAnywhere, allowing the embedded system to retrieve the required information with a single HTTP request.
+
+---
+
+## 💾 Flash Storage
+
+Wi-Fi SSID and password information are stored in Flash memory.
+
+The stored credentials are loaded after a system restart, so the Wi-Fi information does not need to be entered again.
+
+---
+
+## 🔧 Debugging and Development
+
+During development:
+
+- FreeRTOS task stack usage was monitored and stack sizes were adjusted where necessary.
+- I2C communication problems were analyzed using a logic analyzer.
+- QMC5883L hard-iron offsets were determined and applied for compass calibration.
+- Small heading changes were filtered to reduce movement of the compass indicator.
 
 ---
 
 ## 🔨 Build Info
 
-- **MCU:** STM32F407VG
-- **Core:** ARM Cortex-M4
+- **MCU:** TI MSPM0G3507
+- **Core:** ARM Cortex-M0+
 - **Language:** Embedded C
-- **IDE:** STM32CubeIDE
-- **Programming:** Bare-Metal / Register-Level
-- **HAL/LL:** Not used
+- **RTOS:** FreeRTOS
+- **IDE:** Code Composer Studio
+- **Wi-Fi Module:** ESP8266
+- **Display:** ST7789 TFT
 
 ---
 
@@ -70,7 +110,7 @@ stm32f4-baremetal-drivers/
 **Hasan Erol**  
 Embedded Software / Firmware
 
-STM32 • ARM Cortex-M • Bare-Metal • Embedded C
+MSPM0 • FreeRTOS • Embedded C • I2C • SPI • UART
 
 📧 **eem.hasanerol@gmail.com**  
 🔗 [github.com/eemhasanerol](https://github.com/eemhasanerol)
