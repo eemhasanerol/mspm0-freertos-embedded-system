@@ -1,131 +1,76 @@
-# FreeRTOS-Based Embedded System
+# ⚙️ STM32F4 Bare-Metal Drivers
 
-Embedded system developed on the TI MSPM0G3507 using C and FreeRTOS.
+Bare-metal peripheral drivers developed for the STM32F407VG in Embedded C, without using HAL or LL libraries.
 
-The system reads data from multiple sensors, connects to the internet through an ESP8266 Wi-Fi module, and displays both local and online data on an ST7789 TFT display.
+The project focuses on understanding STM32 peripherals at register level and building modular, reusable driver APIs.
 
-## Features
+---
 
-- FreeRTOS-based multi-task application
-- BME280 temperature, humidity, and pressure measurement
-- DS1307 real-time clock (RTC)
-- QMC5883L magnetometer for compass heading
-- ESP8266 Wi-Fi communication over UART using AT commands
-- Wi-Fi credential storage in Flash memory
-- Online and Offline operating modes
-- Weather and financial data retrieval from a Python backend over HTTP
-- ST7789 TFT display for sensor, internet, RTC, and compass data
+## 🧩 Implemented Drivers
 
-## Hardware
+- **RCC** – Clock configuration and peripheral clock control
+- **GPIO** – GPIO configuration and alternate function support
+- **SysTick** – Millisecond tick and delay functions
+- **EXTI** – External interrupt configuration and handling
+- **I2C** – Master communication and interrupt handling
+- **SPI** – Master communication
+- **USART** – Serial communication
 
-| Component | Description |
-|-----------|-------------|
-| TI MSPM0G3507 | Main microcontroller |
-| BME280 | Temperature, humidity, and pressure sensor |
-| DS1307 | Real-time clock (RTC) |
-| QMC5883L | 3-axis magnetometer |
-| ESP8266 | Wi-Fi module |
-| ST7789 | TFT display |
+---
 
-## Software Architecture
+## 🔧 Driver Design
 
-The project is organized into separate layers for application logic, device drivers, hardware-specific functions, and user interface code.
+- Handle-based peripheral configuration
+- Enum-based configuration options
+- Status and error handling through return values
+- Configurable timeout for blocking operations
+- Interrupt support for GPIO/EXTI and I2C
 
-- `APP/` – Application logic, system initialization, and internet data handling
-- `Drivers/` – Device drivers for BME280, DS1307, QMC5883L, ESP8266, and ST7789
-- `Platform/` – MCU-specific communication and hardware interface functions
-- `UI/` – Display screens and compass interface
-## Communication Interfaces
+---
 
-- I2C – Communication with BME280, DS1307, and QMC5883L
-- UART – Communication with ESP8266 using AT commands
-- SPI – Communication with ST7789 TFT display
-## Online and Offline Operation
+## 🧠 Example Projects
 
-The system supports both online and offline operating modes.
+The `/Examples` directory contains simple applications used to test the drivers on real hardware.
 
-- Wi-Fi credentials are stored in Flash memory and reused after reset.
-- The ESP8266 connects to the configured Wi-Fi network using AT commands.
-- In Online mode, weather and financial data are retrieved from a Python backend over HTTP.
-- In Offline mode, local sensor, RTC, and compass data remain available without an internet connection.
-## FreeRTOS Architecture
+| Example | Description |
+|---------|-------------|
+| `GPIO_LED_Toggle` | Toggles LEDs using a SysTick-based delay. |
+| `EXTI_Button_LED` | Controls an LED using an external button interrupt. |
+| `I2C_DeviceID_Read` | Reads a device ID register over I2C. |
+| `SPI_DeviceID_Read` | Reads a device register over SPI. |
 
-The application is divided into separate tasks for sensor processing, user interface, Wi-Fi communication, button handling, and system monitoring.
+---
 
-- FreeRTOS tasks are used to separate the main system functions.
-- Task notifications are used for communication between interrupts and tasks.
-- Event Groups are used to monitor task activity with a software watchdog mechanism.
-- Tasks use RTOS delays instead of blocking delays where periodic execution is required.
-## System Architecture
+## 🗂 Project Structure
 
 ```text
- ┌─────────────┐
- │   BME280    │──┐
- │ Temp. / Hum.│  │
- │  / Pressure │  │
- └─────────────┘  │
-                  │ I2C
- ┌─────────────┐  │       ┌────────────────────────────────┐       ┌─────────────┐
- │   DS1307    │──┼──────►│        TI MSPM0G3507          │──SPI─►│   ST7789    │
- │     RTC     │  │       │                                │       │ TFT Display │
- └─────────────┘  │       │  ┌──────────────────────────┐  │       └─────────────┘
-                  │       │  │        FreeRTOS          │  │
- ┌─────────────┐  │       │  │                          │  │       ┌─────────────┐
- │  QMC5883L   │──┘       │  │ • Application Tasks      │  │─UART─►│   ESP8266   │
- │   Compass   │          │  │ • Task Notifications     │  │       │    Wi-Fi    │
- └─────────────┘          │  │ • Event Groups           │  │       └──────┬──────┘
-                          │  └────────────┬─────────────┘  │              │
- ┌─────────────┐          │               │ Task Status    │         Wi-Fi / HTTP
- │   Button    │─GPIO/IRQ►│               ▼                │              │
- └─────────────┘          │  ┌──────────────────────────┐  │              ▼
-                          │  │      Watchdog Task       │  │       ┌───────────────┐
-                          │  │  Task Health Monitoring  │  │       │ Python Backend│
-                          │  └────────────┬─────────────┘  │       │ Weather /     │
-                          │               │ Feed           │       │ Financial Data│
-                          │               ▼                │       └───────────────┘
-                          │  ┌──────────────────────────┐  │
-                          │  │    Hardware Watchdog     │  │
-                          │  │          WWDT            │  │
-                          │  └──────────────────────────┘  │
-                          └────────────────────────────────┘
+stm32f4-baremetal-drivers/
+│
+├── Core/                 # Startup code and SysTick
+├── Drivers/              # Peripheral drivers
+├── Examples/             # Example applications
+└── README.md
 ```
-```
-## Project Structure
-```text
-Full_Proje/
-├── APP/
-│   ├── app_init.c
-│   ├── internet_data.c
-│   └── main.c
-│
-├── Drivers/
-│   ├── bme280/
-│   ├── ds1307/
-│   ├── esp8266/
-│   ├── qmc5883l/
-│   └── st7789/
-│
-├── Platform/
-│   ├── platform.c
-│   └── platform.h
-│
-├── UI/
-│   ├── compass_screen.c
-│   ├── offline_screen.c
-│   └── wifi_screen.c
-│
-├── freertos/
-├── Full_Proje.syscfg
-└── mspm0g3507.cmd
-## Development Environment  
-- TI Code Composer Studio (CCS)
-- TI MSPM0 SDK
-- SysConfig
-- FreeRTOS
-- C
-## Build and Run
-1. Open the project in TI Code Composer Studio.
-2. Make sure the MSPM0 SDK and SysConfig are installed.
-3. Connect the LP-MSPM0G3507 LaunchPad.
-4. Build the project.
-5. Flash and run the application on the target board.
+
+---
+
+## 🔨 Build Info
+
+- **MCU:** STM32F407VG
+- **Core:** ARM Cortex-M4
+- **Language:** Embedded C
+- **IDE:** STM32CubeIDE
+- **Programming:** Bare-Metal / Register-Level
+- **HAL/LL:** Not used
+
+---
+
+## 👤 Author
+
+**Hasan Erol**  
+Embedded Software / Firmware
+
+STM32 • ARM Cortex-M • Bare-Metal • Embedded C
+
+📧 **eem.hasanerol@gmail.com**  
+🔗 [github.com/eemhasanerol](https://github.com/eemhasanerol)
